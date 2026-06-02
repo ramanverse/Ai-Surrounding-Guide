@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Explain My Surroundings</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        #video-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        video {
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            background: #2a2a2a;
+            max-width: 100%;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        #status-text {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #aaa;
+        }
+
+        #result-text {
+            margin-top: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4caf50;
+            max-width: 600px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>AI Surroundings Guide</h1>
+
+    <div id="video-container">
+        <video id="webcam" width="640" height="480" autoplay playsinline></video>
+    </div>
+
+    <canvas id="snapshot" width="640" height="480" style="display:none;"></canvas>
+
+    <button id="capture-btn">Explain My Surroundings</button>
+
+    <div id="status-text">Camera starting...</div>
+    <div id="result-text"></div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('snapshot');
+        const context = canvas.getContext('2d');
+        const captureBtn = document.getElementById('capture-btn');
+        const statusText = document.getElementById('status-text');
+        const resultText = document.getElementById('result-text');
+
+        // 1. Request access to the user's webcam
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                video.srcObject = stream;
+                statusText.innerText = "Ready. Tap the button to analyze.";
+            })
+            .catch(err => {
+                console.error("Camera error:", err);
+                statusText.innerText = "Error accessing camera. Please check permissions.";
+            });
+
+        // 2. Handle the button click
+        captureBtn.addEventListener('click', async () => {
+            captureBtn.disabled = true;
+            statusText.innerText = "Analyzing scene... please hold still.";
+            resultText.innerText = "";
+
+            // Draw the current video frame onto the hidden canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert the canvas to a JPEG file (Blob)
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append("image", blob, "capture.jpg");
+
+                try {
+                    // Send the image to our FastAPI backend
+                    const response = await fetch("/analyze-scene", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        statusText.innerText = "Analysis complete.";
+                        resultText.innerText = data.description;
+
+                        // 3. Text-to-Speech API
+                        speakText(data.description);
+                    } else {
+                        statusText.innerText = "Error: " + data.detail;
+                    }
+                } catch (error) {
+                    console.error("API Error:", error);
+                    statusText.innerText = "Failed to connect to the backend server.";
+                } finally {
+                    captureBtn.disabled = false;
+                }
+            }, 'image/jpeg', 0.8); // 0.8 is the image quality (80%)
+        });
+
+        // 4. Function to speak the text out loud
+        function speakText(text) {
+            // Cancel any current speech
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;  // Speed
+            utterance.pitch = 1.0; // Pitch
+            window.speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+
+</html>
