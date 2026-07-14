@@ -18,5 +18,5 @@ COPY . .
 # Expose port
 EXPOSE 7860
 
-# Run the application using uvicorn directly
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Run the application using uvicorn directly with dynamic port binding
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
